@@ -1,0 +1,24 @@
+:root {
+  --pink: #ffb3d9;
+  --lavender: #e6ccff;
+  --soft-blue: #cce7ff;
+}
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background-color: var(--lavender);
+  color: #333;
+}
+button {
+  background: var(--pink);
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 1rem;
+  cursor: pointer;
+}
+input, textarea {
+  border: 1px solid #aaa;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  margin: 0.25rem 0;
+}
