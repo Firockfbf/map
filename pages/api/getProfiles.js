@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabaseClient'
 export default async function handler(req, res) {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, pseudo, avatar_url, lat, lng, anon_radius')
+    .select('id, pseudo, avatar_url, lat, lng, anon_radius, description')
     .eq('status', 'approved')
 
   if (error) {
