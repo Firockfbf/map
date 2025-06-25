@@ -20,13 +20,9 @@ const MarkerClusterGroup = dynamic(
   { ssr: false }
 )
 
-// Écouteur de clic basique, sans désactivation de la carte
+// Écouteur de clic basique
 function ClickControl({ onClick }) {
-  useMapEvents({
-    click(e) {
-      onClick(e)
-    },
-  })
+  useMapEvents({ click: e => onClick(e) })
   return null
 }
 
@@ -43,35 +39,32 @@ function getRandomPointInCircle(center, radiusMeters) {
 }
 
 export default function MapWithForm() {
-  const [profiles, setProfiles] = useState([])
-  const [anonRadius, setAnonRadius] = useState(1000)
-  const [clickCircle, setClickCircle] = useState(null)
+  const [profiles, setProfiles]         = useState([])
+  const [anonRadius, setAnonRadius]     = useState(1000)
+  const [clickCircle, setClickCircle]   = useState(null)
   const [profileCircle, setProfileCircle] = useState(null)
-  const [selectedPos, setSelectedPos] = useState(null)
-  const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({
+  const [selectedPos, setSelectedPos]   = useState(null)
+  const [showForm, setShowForm]         = useState(false)
+  const [formData, setFormData]         = useState({
     pseudo: '',
     avatar: null,
     description: '',
   })
 
-  // Load approved profiles
   useEffect(() => {
     fetch('/api/getProfiles')
       .then(r => r.json())
       .then(setProfiles)
   }, [])
 
-  // Nouveau cercle + formulaire au clic carte
   const handleMapClick = e => {
     const randomCenter = getRandomPointInCircle(e.latlng, anonRadius)
     setClickCircle({ center: randomCenter, radius: anonRadius })
     setSelectedPos(randomCenter)
     setShowForm(true)
-    setProfileCircle(null) // cache le cercle de profil si visible
+    setProfileCircle(null)
   }
 
-  // Affiche le cercle d’anonymisation d’un profil au clic
   const handleProfileClick = p => {
     setProfileCircle({
       center: { lat: p.lat, lng: p.lng },
@@ -83,7 +76,6 @@ export default function MapWithForm() {
     setShowForm(false)
   }
 
-  // Envoi du formulaire
   const handleSubmit = async e => {
     e.preventDefault()
     if (!selectedPos) return
@@ -106,7 +98,6 @@ export default function MapWithForm() {
     }
   }
 
-  // Icône avatar
   const createAvatarIcon = url =>
     new L.Icon({
       iconUrl: url,
@@ -149,6 +140,11 @@ export default function MapWithForm() {
             <option value={1000}>1 km</option>
             <option value={3000}>3 km</option>
             <option value={5000}>5 km</option>
+            <option value={10000}>10 km</option>
+            <option value={15000}>15 km</option>
+            <option value={20000}>20 km</option>
+            <option value={25000}>25 km</option>
+            <option value={30000}>30 km</option>
           </select>
         </label>
       </div>
@@ -194,7 +190,6 @@ export default function MapWithForm() {
             pathOptions={{ color: 'blue', fillOpacity: 0.1 }}
           />
         )}
-
         {/* Cercle de profil */}
         {profileCircle && (
           <Circle
@@ -207,7 +202,6 @@ export default function MapWithForm() {
         <ClickControl onClick={handleMapClick} />
       </MapContainer>
 
-      {/* Formulaire */}
       {showForm && (
         <div
           style={{
@@ -249,7 +243,7 @@ export default function MapWithForm() {
             <textarea
               required
               maxLength={100}
-              placeholder="Description (max 100 caractères)"
+              placeholder="Description (100 car.)"
               value={formData.description}
               onChange={e =>
                 setFormData(f => ({ ...f, description: e.target.value }))
