@@ -14,13 +14,13 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { supabase } from '../lib/supabaseClient'
 
-// Import du cluster de façon dynamique (SSR off)
+// Chargement dynamique du cluster (SSR désactivé)
 const MarkerClusterGroup = dynamic(
   () => import('react-leaflet-markercluster').then(mod => mod.default),
   { ssr: false }
 )
 
-// Controle de click pour lock/unlock la carte
+// Contrôle de clic pour lock/unlock la carte lorsque le formulaire est ouvert
 function ClickControl({ onClick, disabled }) {
   const map = useMapEvents({
     click(e) {
@@ -29,14 +29,18 @@ function ClickControl({ onClick, disabled }) {
   })
   useEffect(() => {
     if (!map) return
-    disabled
-      ? (map.dragging.disable(), map.scrollWheelZoom.disable())
-      : (map.dragging.enable(), map.scrollWheelZoom.enable())
+    if (disabled) {
+      map.dragging.disable()
+      map.scrollWheelZoom.disable()
+    } else {
+      map.dragging.enable()
+      map.scrollWheelZoom.enable()
+    }
   }, [map, disabled])
   return null
 }
 
-// Génère un point aléatoire dans un cercle de rayon donné (mètres)
+// Génère un point aléatoire dans un cercle de rayon donné (en mètres)
 function getRandomPointInCircle(center, radiusMeters) {
   const rd = radiusMeters / 111320
   const u = Math.random()
@@ -57,14 +61,14 @@ export default function MapWithForm() {
   const [showForm, setShowForm] = useState(false)
   const [formData, setFormData] = useState({ pseudo: '', avatar: null })
 
-  // Charge les profils approuvés au montage
+  // Charge les profils approuvés
   useEffect(() => {
     fetch('/api/getProfiles')
       .then(r => r.json())
       .then(setProfiles)
   }, [])
 
-  // Clic pour créer un nouveau profil (génère aléatoirement un centre dans le rayon)
+  // Clic carte pour créer un profil
   const handleMapClick = e => {
     const randomCenter = getRandomPointInCircle(e.latlng, anonRadius)
     setClickCircle({ center: randomCenter, radius: anonRadius })
@@ -72,7 +76,7 @@ export default function MapWithForm() {
     setShowForm(true)
   }
 
-  // Clic sur un marker de profil : affiche son cercle d’anonymisation
+  // Clic sur un profil pour afficher son cercle
   const handleProfileClick = p => {
     setProfileCircle({
       center: { lat: p.lat, lng: p.lng },
@@ -87,7 +91,7 @@ export default function MapWithForm() {
     setFormData({ pseudo: '', avatar: null })
   }
 
-  // Soumet le profil avec le rayon choisi
+  // Soumission du formulaire
   const handleSubmit = async e => {
     e.preventDefault()
     if (!selectedPos) return
@@ -109,7 +113,7 @@ export default function MapWithForm() {
     }
   }
 
-  // Crée une icône à partir de l’avatar
+  // Crée une icône Leaflet à partir de l’URL de l’avatar
   const createAvatarIcon = url =>
     new L.Icon({
       iconUrl: url,
@@ -121,25 +125,32 @@ export default function MapWithForm() {
 
   return (
     <div style={{ position: 'relative', height: '100vh', width: '100%' }}>
-      {/* Sélecteur de rayon */}
+      {/* Sélecteur de rayon (mini-menu) */}
       <div
         style={{
           position: 'absolute',
           top: 10,
-          left: 10,
+          left: 20,            // décalé vers la droite
           zIndex: 1000,
           background: 'white',
-          padding: '8px 12px',
+          padding: '10px 16px',// padding augmenté
           borderRadius: 4,
           boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
         }}
       >
-        <label>
+        <label style={{ fontSize: '1rem' }}>
           Rayon&nbsp;:
           <select
             value={anonRadius}
             onChange={e => setAnonRadius(Number(e.target.value))}
-            style={{ marginLeft: 8 }}
+            style={{
+              marginLeft: 12,          // plus d’espace à gauche
+              padding: '6px 12px',     // zone cliquable agrandie
+              fontSize: '1.1rem',      // texte plus grand
+              minWidth: '120px',       // largeur minimale
+              borderRadius: 4,
+              border: '1px solid #ccc',
+            }}
           >
             <option value={500}>0.5 km</option>
             <option value={1000}>1 km</option>
@@ -149,6 +160,7 @@ export default function MapWithForm() {
         </label>
       </div>
 
+      {/* La carte */}
       <MapContainer
         center={[46.5, 2.5]}
         zoom={5}
@@ -190,7 +202,7 @@ export default function MapWithForm() {
           />
         )}
 
-        {/* Cercle d’anonymisation au clic sur profil */}
+        {/* Cercle d’anonymisation du profil cliqué */}
         {profileCircle && (
           <Circle
             center={profileCircle.center}
