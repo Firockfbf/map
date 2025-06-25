@@ -1,13 +1,15 @@
 // pages/api/submit.js
+
+// Désactive le bodyParser de Next.js pour gérer le multipart
 export const config = { api: { bodyParser: false } }
 
 import { createClient } from '@supabase/supabase-js'
-import { IncomingForm }  from 'formidable'
-import fs                from 'fs'
-import os                from 'os'
-import path              from 'path'
+import { IncomingForm } from 'formidable'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
 
-// Client “admin”
+// Client “admin” Supabase
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -19,75 +21,77 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Configure Formidable
     const form = new IncomingForm({
       uploadDir: os.tmpdir(),
       keepExtensions: true,
       maxFileSize: 5 * 1024 * 1024,
     })
 
-    // Parse fields + fichiers
+    // Parse la requête
     const { fields, files } = await new Promise((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         err ? reject(err) : resolve({ fields, files })
       })
     })
 
-    // Récupération + validation
-    const { pseudo, lat, lng, description } = fields
-    if (!pseudo || !lat || !lng) {
-      return res.status(400).json({ error: 'Champs manquants' })
-    }
-    if (description && description.length > 100) {
-      return res
-        .status(400)
-        .json({ error: 'Description trop longue (max 100 caractères)' })
-    }
+    console.log('FIELDS:', fields)
+    console.log('FILES:', files)
 
+    // Récupère les champs et le fichier
+    const { pseudo, lat, lng, anon_radius } = fields
     let file = files.avatar
     if (Array.isArray(file)) file = file[0]
-    if (!file) {
-      return res.status(400).json({ error: 'Avatar manquant' })
+
+    if (!pseudo || !lat || !lng || !anon_radius || !file) {
+      return res.status(400).json({ error: 'Champs manquants' })
     }
 
-    // Chemin tmp
-    const tmp = file.filepath || file.filePath || file.path
-    if (!tmp) throw new Error('Fichier uploadé introuvable')
+    // Chemin temporaire
+    const tempPath = file.filepath || file.filePath || file.path
+    if (!tempPath) throw new Error('Impossible de localiser le fichier uploadé')
 
-    // Lecture + upload
-    const buffer = fs.readFileSync(tmp)
-    const ext    = path.extname(tmp)
-    const name   = `${Date.now()}${ext}`
+    // Lit le buffer et prépare l’upload
+    const buffer = fs.readFileSync(tempPath)
+    const ext = path.extname(tempPath)
+    const fileName = `${Date.now()}${ext}`
 
+    // 1) Upload vers Supabase Storage
     const { error: upErr } = await supabaseAdmin.storage
       .from('avatars')
-      .upload(name, buffer, { contentType: file.mimetype })
+      .upload(fileName, buffer, { contentType: file.mimetype })
     if (upErr) throw upErr
 
+    console.log('Upload OK:', fileName)
+
+    // 2) Récupère l’URL publique
     const { data: urlData, error: urlErr } = supabaseAdmin.storage
       .from('avatars')
-      .getPublicUrl(name)
+      .getPublicUrl(fileName)
     if (urlErr) throw urlErr
 
-    // Insert en DB
+    console.log('Public URL:', urlData.publicUrl)
+
+    // 3) Insère en base avec le rayon
     const { error: dbErr } = await supabaseAdmin
       .from('profiles')
-      .insert([
-        {
-          pseudo,
-          avatar_url: urlData.publicUrl,
-          lat: parseFloat(lat),
-          lng: parseFloat(lng),
-          description: description || '',
-          status: 'pending',
-        },
-      ])
+      .insert([{
+        pseudo,
+        avatar_url: urlData.publicUrl,
+        lat: parseFloat(lat),
+        lng: parseFloat(lng),
+        anon_radius: parseInt(anon_radius, 10),
+      }])
     if (dbErr) throw dbErr
 
-    // Nettoyage
-    fs.unlinkSync(tmp)
-    res.status(200).json({ message: 'Profil soumis, pending moderation' })
+    console.log('DB insert OK')
+
+    // Supprime le fichier temporaire
+    fs.unlinkSync(tempPath)
+
+    return res.status(200).json({ message: 'Profil soumis, pending moderation' })
   } catch (e) {
     console.error('Submit error:', e)
-    res.status(500).json({ error: e.message })
+    return res.status(500).json({ error: e.message })
   }
 }
