@@ -3,75 +3,87 @@
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import {
-  MapContainer, TileLayer,
-  Marker, Popup, Circle, useMapEvents,
+  MapContainer,
+  TileLayer,
+  Marker,
+  Popup,
+  Circle,
+  useMapEvents,
 } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { supabase } from '../lib/supabaseClient'
 
+// Cluster chargé en SSR off
 const MarkerClusterGroup = dynamic(
   () => import('react-leaflet-markercluster').then(m => m.default),
   { ssr: false }
 )
 
-function ClickControl({ onClick, disabled }) {
-  const map = useMapEvents({ click: e => !disabled && onClick(e) })
-  useEffect(() => {
-    if (!map) return
-    disabled
-      ? (map.dragging.disable(), map.scrollWheelZoom.disable())
-      : (map.dragging.enable(), map.scrollWheelZoom.enable())
-  }, [map, disabled])
+// Écouteur de clic basique, sans désactivation de la carte
+function ClickControl({ onClick }) {
+  useMapEvents({
+    click(e) {
+      onClick(e)
+    },
+  })
   return null
 }
 
+// Tirage aléatoire dans un cercle (en mètres)
 function getRandomPointInCircle(center, radiusMeters) {
   const rd = radiusMeters / 111320
-  const u = Math.random(), v = Math.random()
-  const w = rd * Math.sqrt(u), t = 2 * Math.PI * v
+  const u = Math.random()
+  const v = Math.random()
+  const w = rd * Math.sqrt(u)
+  const t = 2 * Math.PI * v
   const dy = w * Math.sin(t)
   const dx = (w * Math.cos(t)) / Math.cos(center.lat * Math.PI / 180)
   return { lat: center.lat + dy, lng: center.lng + dx }
 }
 
 export default function MapWithForm() {
-  const [profiles, setProfiles]     = useState([])
+  const [profiles, setProfiles] = useState([])
   const [anonRadius, setAnonRadius] = useState(1000)
-  const [clickCircle, setClickCircle]     = useState(null)
+  const [clickCircle, setClickCircle] = useState(null)
   const [profileCircle, setProfileCircle] = useState(null)
-  const [selectedPos, setSelectedPos]     = useState(null)
-  const [showForm, setShowForm]           = useState(false)
-  const [formData, setFormData]           = useState({
+  const [selectedPos, setSelectedPos] = useState(null)
+  const [showForm, setShowForm] = useState(false)
+  const [formData, setFormData] = useState({
     pseudo: '',
     avatar: null,
-    description: '',    // ← nouveau
+    description: '',
   })
 
+  // Load approved profiles
   useEffect(() => {
     fetch('/api/getProfiles')
       .then(r => r.json())
       .then(setProfiles)
   }, [])
 
+  // Nouveau cercle + formulaire au clic carte
   const handleMapClick = e => {
     const randomCenter = getRandomPointInCircle(e.latlng, anonRadius)
     setClickCircle({ center: randomCenter, radius: anonRadius })
     setSelectedPos(randomCenter)
     setShowForm(true)
+    setProfileCircle(null) // cache le cercle de profil si visible
   }
 
+  // Affiche le cercle d’anonymisation d’un profil au clic
   const handleProfileClick = p => {
-    setProfileCircle({ center: { lat: p.lat, lng: p.lng }, radius: p.anon_radius })
+    setProfileCircle({
+      center: { lat: p.lat, lng: p.lng },
+      radius: p.anon_radius,
+    })
   }
 
   const closeForm = () => {
     setShowForm(false)
-    setClickCircle(null)
-    setSelectedPos(null)
-    setFormData({ pseudo: '', avatar: null, description: '' })
   }
 
+  // Envoi du formulaire
   const handleSubmit = async e => {
     e.preventDefault()
     if (!selectedPos) return
@@ -81,7 +93,7 @@ export default function MapWithForm() {
     fd.append('lat', selectedPos.lat)
     fd.append('lng', selectedPos.lng)
     fd.append('anon_radius', anonRadius)
-    fd.append('description', formData.description) // ← nouveau
+    fd.append('description', formData.description)
     fd.append('avatar', formData.avatar)
 
     const res = await fetch('/api/submit', { method: 'POST', body: fd })
@@ -94,6 +106,7 @@ export default function MapWithForm() {
     }
   }
 
+  // Icône avatar
   const createAvatarIcon = url =>
     new L.Icon({
       iconUrl: url,
@@ -105,22 +118,31 @@ export default function MapWithForm() {
 
   return (
     <div style={{ position: 'relative', height: '100vh', width: '100%' }}>
-      {/* mini-menu rayon */}
-      <div style={{
-        position: 'absolute',
-        top: 10, left: 20, zIndex: 1000,
-        background: 'white', padding: '10px 16px',
-        borderRadius: 4, boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-      }}>
+      {/* Sélecteur de rayon */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 10,
+          left: 20,
+          zIndex: 1000,
+          background: 'white',
+          padding: '10px 16px',
+          borderRadius: 4,
+          boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+        }}
+      >
         <label style={{ fontSize: '1rem' }}>
           Rayon&nbsp;:
           <select
             value={anonRadius}
             onChange={e => setAnonRadius(Number(e.target.value))}
             style={{
-              marginLeft: 12, padding: '6px 12px',
-              fontSize: '1.1rem', minWidth: '120px',
-              borderRadius: 4, border: '1px solid #ccc',
+              marginLeft: 12,
+              padding: '6px 12px',
+              fontSize: '1.1rem',
+              minWidth: '120px',
+              borderRadius: 4,
+              border: '1px solid #ccc',
             }}
           >
             <option value={500}>0.5 km</option>
@@ -132,7 +154,8 @@ export default function MapWithForm() {
       </div>
 
       <MapContainer
-        center={[46.5, 2.5]} zoom={5}
+        center={[46.5, 2.5]}
+        zoom={5}
         style={{ height: '100%', width: '100%', cursor: 'crosshair' }}
         attributionControl={false}
       >
@@ -149,7 +172,8 @@ export default function MapWithForm() {
               <Popup>
                 <img
                   src={p.avatar_url}
-                  width={50} height={50}
+                  width={50}
+                  height={50}
                   style={{ borderRadius: '50%' }}
                   alt={p.pseudo}
                 />
@@ -162,6 +186,7 @@ export default function MapWithForm() {
           ))}
         </MarkerClusterGroup>
 
+        {/* Cercle de création */}
         {clickCircle && (
           <Circle
             center={clickCircle.center}
@@ -169,6 +194,8 @@ export default function MapWithForm() {
             pathOptions={{ color: 'blue', fillOpacity: 0.1 }}
           />
         )}
+
+        {/* Cercle de profil */}
         {profileCircle && (
           <Circle
             center={profileCircle.center}
@@ -177,16 +204,23 @@ export default function MapWithForm() {
           />
         )}
 
-        <ClickControl onClick={handleMapClick} disabled={showForm} />
+        <ClickControl onClick={handleMapClick} />
       </MapContainer>
 
+      {/* Formulaire */}
       {showForm && (
-        <div style={{
-          position: 'absolute', top: 20, right: 20,
-          width: 320, background: 'white',
-          padding: 16, boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
-          zIndex: 1000,
-        }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: 20,
+            right: 20,
+            width: 320,
+            background: 'white',
+            padding: 16,
+            boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+            zIndex: 1000,
+          }}
+        >
           <button
             onClick={closeForm}
             style={{
@@ -196,7 +230,9 @@ export default function MapWithForm() {
               fontSize: '1.2rem',
               cursor: 'pointer',
             }}
-          >×</button>
+          >
+            ×
+          </button>
           <h2 style={{ color: 'var(--pink)', margin: '0 0 1rem' }}>
             Ajouter ton profil
           </h2>
