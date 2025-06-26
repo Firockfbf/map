@@ -6,27 +6,30 @@ import {
   MapContainer,
   TileLayer,
   Marker,
-  Popup,
   Circle,
+  Popup,
   useMapEvents,
 } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { supabase } from '../lib/supabaseClient'
 
-// Cluster chargé en SSR off
+// Cluster (SSR désactivé)
 const MarkerClusterGroup = dynamic(
   () => import('react-leaflet-markercluster').then(m => m.default),
   { ssr: false }
 )
 
-// Écouteur de clic basique
-function ClickControl({ onClick }) {
-  useMapEvents({ click: e => onClick(e) })
-  return null
-}
+// Icône avatar
+const createAvatarIcon = url =>
+  new L.Icon({
+    iconUrl: url,
+    iconSize: [40, 40],
+    iconAnchor: [20, 40],
+    popupAnchor: [0, -40],
+    className: 'rounded-marker-icon',
+  })
 
-// Tirage aléatoire dans un cercle (en mètres)
+// Point aléatoire dans un cercle (mètres)
 function getRandomPointInCircle(center, radiusMeters) {
   const rd = radiusMeters / 111320
   const u = Math.random()
@@ -38,83 +41,83 @@ function getRandomPointInCircle(center, radiusMeters) {
   return { lat: center.lat + dy, lng: center.lng + dx }
 }
 
-export default function MapWithForm() {
-  const [profiles, setProfiles]         = useState([])
-  const [anonRadius, setAnonRadius]     = useState(1000)
-  const [clickCircle, setClickCircle]   = useState(null)
-  const [profileCircle, setProfileCircle] = useState(null)
-  const [selectedPos, setSelectedPos]   = useState(null)
-  const [showForm, setShowForm]         = useState(false)
-  const [formData, setFormData]         = useState({
-    pseudo: '',
-    avatar: null,
-    description: '',
-  })
+// Écouteur de clic carte
+function ClickControl({ onClick }) {
+  useMapEvents({ click: onClick })
+  return null
+}
 
+export default function MapWithForm() {
+  const [profiles, setProfiles]             = useState([])
+  const [anonRadius, setAnonRadius]         = useState(1000)
+  const [clickCircle, setClickCircle]       = useState(null)
+  const [profileCircle, setProfileCircle]   = useState(null)
+  const [selectedProfile, setSelectedProfile] = useState(null)
+  const [selectedPos, setSelectedPos]       = useState(null)
+  const [showForm, setShowForm]             = useState(false)
+  const [formData, setFormData]             = useState({
+    pseudo: '',
+    description: '',
+    avatar: null,
+  })
+  const [showContact, setShowContact]       = useState(false)
+
+  // Charge les profils approuvés
   useEffect(() => {
     fetch('/api/getProfiles')
       .then(r => r.json())
       .then(setProfiles)
+      .catch(console.error)
   }, [])
 
+  // Clic carte = nouveau cercle & ouverture formulaire
   const handleMapClick = e => {
-    const randomCenter = getRandomPointInCircle(e.latlng, anonRadius)
-    setClickCircle({ center: randomCenter, radius: anonRadius })
-    setSelectedPos(randomCenter)
+    const rand = getRandomPointInCircle(e.latlng, anonRadius)
+    setClickCircle({ center: rand, radius: anonRadius })
+    setSelectedPos(rand)
     setShowForm(true)
     setProfileCircle(null)
+    setSelectedProfile(null)
   }
 
+  // Clic marker = cercle profil + affichage popup
   const handleProfileClick = p => {
-    setProfileCircle({
-      center: { lat: p.lat, lng: p.lng },
-      radius: p.anon_radius,
-    })
-  }
-
-  const closeForm = () => {
+    setProfileCircle({ center: { lat: p.lat, lng: p.lng }, radius: p.anon_radius })
+    setSelectedProfile(p)
     setShowForm(false)
+    setClickCircle(null)
   }
 
+  // Soumet le formulaire
   const handleSubmit = async e => {
     e.preventDefault()
     if (!selectedPos) return
-
     const fd = new FormData()
     fd.append('pseudo', formData.pseudo)
+    fd.append('description', formData.description)
+    fd.append('anon_radius', anonRadius)
     fd.append('lat', selectedPos.lat)
     fd.append('lng', selectedPos.lng)
-    fd.append('anon_radius', anonRadius)
-    fd.append('description', formData.description)
     fd.append('avatar', formData.avatar)
-
     const res = await fetch('/api/submit', { method: 'POST', body: fd })
     if (res.ok) {
-      alert('Profil soumis, en attente de modération !')
-      closeForm()
+      alert('Profil soumis !')
+      setShowForm(false)
+      fetch('/api/getProfiles').then(r => r.json()).then(setProfiles)
     } else {
       const err = await res.json()
       alert('Erreur : ' + err.error)
     }
   }
 
-  const createAvatarIcon = url =>
-    new L.Icon({
-      iconUrl: url,
-      iconSize: [40, 40],
-      className: 'rounded-marker-icon',
-      iconAnchor: [20, 40],
-      popupAnchor: [0, -40],
-    })
-
   return (
     <div style={{ position: 'relative', height: '100vh', width: '100%' }}>
-      {/* Sélecteur de rayon */}
+      {/* 1) Sélecteur de rayon en haut à gauche, légèrement décalé */}
       <div
         style={{
           position: 'absolute',
           top: 10,
-          left: 20,
+          left: 40,       // <-- ici décalage
           zIndex: 1000,
           background: 'white',
           padding: '10px 16px',
@@ -123,7 +126,7 @@ export default function MapWithForm() {
         }}
       >
         <label style={{ fontSize: '1rem' }}>
-          Rayon&nbsp;:
+          Rayon :
           <select
             value={anonRadius}
             onChange={e => setAnonRadius(Number(e.target.value))}
@@ -131,7 +134,7 @@ export default function MapWithForm() {
               marginLeft: 12,
               padding: '6px 12px',
               fontSize: '1.1rem',
-              minWidth: '120px',
+              minWidth: 120,
               borderRadius: 4,
               border: '1px solid #ccc',
             }}
@@ -149,6 +152,65 @@ export default function MapWithForm() {
         </label>
       </div>
 
+      {/* 2) Bouton Contact */}
+      <button
+        onClick={() => setShowContact(true)}
+        style={{
+          position: 'absolute',
+          bottom: 20,
+          left: 20,
+          zIndex: 1000,
+          background: 'var(--pink)',
+          color: 'white',
+          border: 'none',
+          padding: '8px 12px',
+          borderRadius: 4,
+          cursor: 'pointer',
+        }}
+      >
+        Contact
+      </button>
+
+      {/* 3) Panneau Contact */}
+      {showContact && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 60,
+            left: 20,
+            width: 200,
+            background: 'white',
+            padding: 16,
+            boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+            borderRadius: 4,
+            zIndex: 1000,
+          }}
+        >
+          <button
+            onClick={() => setShowContact(false)}
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              background: 'transparent',
+              border: 'none',
+              fontSize: '1.2rem',
+              cursor: 'pointer',
+            }}
+          >
+            ×
+          </button>
+          <h3 style={{ margin: '0 0 8px' }}>Contactez-moi</h3>
+          <p style={{ margin: '4px 0' }}>
+            Discord : <a href="https://discord.com/users/Firock_" target="_blank" rel="noopener">Firock_</a>
+          </p>
+          <p style={{ margin: '4px 0' }}>
+            Instagram : <a href="https://instagram.com/stupid_femboy_" target="_blank" rel="noopener">@stupid_femboy_</a>
+          </p>
+        </div>
+      )}
+
+      {/* 4) La carte */}
       <MapContainer
         center={[46.5, 2.5]}
         zoom={5}
@@ -164,25 +226,10 @@ export default function MapWithForm() {
               position={[p.lat, p.lng]}
               icon={createAvatarIcon(p.avatar_url)}
               eventHandlers={{ click: () => handleProfileClick(p) }}
-            >
-              <Popup>
-                <img
-                  src={p.avatar_url}
-                  width={50}
-                  height={50}
-                  style={{ borderRadius: '50%' }}
-                  alt={p.pseudo}
-                />
-                <div>{p.pseudo}</div>
-                <p style={{ fontSize: '0.9rem', margin: '4px 0 0' }}>
-                  {p.description}
-                </p>
-              </Popup>
-            </Marker>
+            />
           ))}
         </MarkerClusterGroup>
 
-        {/* Cercle de création */}
         {clickCircle && (
           <Circle
             center={clickCircle.center}
@@ -190,7 +237,6 @@ export default function MapWithForm() {
             pathOptions={{ color: 'blue', fillOpacity: 0.1 }}
           />
         )}
-        {/* Cercle de profil */}
         {profileCircle && (
           <Circle
             center={profileCircle.center}
@@ -200,8 +246,31 @@ export default function MapWithForm() {
         )}
 
         <ClickControl onClick={handleMapClick} />
+
+        {/* Popup contrôlé */}
+        {selectedProfile && (
+          <Popup
+            position={[selectedProfile.lat, selectedProfile.lng]}
+            onClose={() => setSelectedProfile(null)}
+          >
+            <div style={{ textAlign: 'center' }}>
+              <img
+                src={selectedProfile.avatar_url}
+                width={60}
+                height={60}
+                style={{ borderRadius: '50%', marginBottom: 8 }}
+                alt={selectedProfile.pseudo}
+              />
+              <div style={{ fontWeight: 'bold' }}>{selectedProfile.pseudo}</div>
+              <div style={{ fontSize: '0.9rem', marginTop: 4 }}>
+                {selectedProfile.description}
+              </div>
+            </div>
+          </Popup>
+        )}
       </MapContainer>
 
+      {/* 5) Formulaire modal */}
       {showForm && (
         <div
           style={{
@@ -216,7 +285,7 @@ export default function MapWithForm() {
           }}
         >
           <button
-            onClick={closeForm}
+            onClick={() => setShowForm(false)}
             style={{
               float: 'right',
               background: 'transparent',
