@@ -19,7 +19,7 @@ const MarkerClusterGroup = dynamic(
   { ssr: false }
 )
 
-// Icône avatar ronde via DivIcon
+// Icône avatar ronde
 const createAvatarIcon = url =>
   L.divIcon({
     html: `
@@ -37,6 +37,7 @@ const createAvatarIcon = url =>
     popupAnchor: [0, -40],
   })
 
+// Génération d’un point aléatoire dans un rayon (en mètres)
 function getRandomPointInCircle(center, radiusMeters) {
   const rd = radiusMeters / 111320
   const u = Math.random(), v = Math.random()
@@ -46,6 +47,7 @@ function getRandomPointInCircle(center, radiusMeters) {
   return { lat: center.lat + dy, lng: center.lng + dx }
 }
 
+// Composant pour capter les clics sur la carte
 function ClickControl({ onClick }) {
   useMapEvents({ click: onClick })
   return null
@@ -64,6 +66,7 @@ export default function MapWithForm() {
   const [showSuccess, setShowSuccess]         = useState(false)
   const [showWelcome, setShowWelcome]         = useState(true)
 
+  // Chargement initial des profils
   useEffect(() => {
     fetch('/api/getProfiles')
       .then(r => r.json())
@@ -102,7 +105,6 @@ export default function MapWithForm() {
     fd.append('lat', selectedPos.lat)
     fd.append('lng', selectedPos.lng)
     fd.append('avatar', avatar)
-
     try {
       const res = await fetch('/api/submit',{ method:'POST', body:fd })
       if (res.ok) fetch('/api/getProfiles').then(r=>r.json()).then(setProfiles)
@@ -111,6 +113,7 @@ export default function MapWithForm() {
     setTimeout(()=>setShowSuccess(false),2000)
   }
 
+  // Création d’une icône cluster montrant jusqu’à 4 avatars
   const clusterIconCreate = cluster => {
     const markers = cluster.getAllChildMarkers()
     const count   = markers.length
@@ -145,6 +148,7 @@ export default function MapWithForm() {
   return (
     <>
       <style jsx global>{`
+        /* Layout principal en grid */
         .app-layout {
           display: grid;
           grid-template-areas:
@@ -162,26 +166,24 @@ export default function MapWithForm() {
           align-items:center; justify-content:center;
           font-size:1.4rem; font-weight:bold;
         }
-        .sidebar-left,
-        .sidebar-right {
+        .sidebar-left, .sidebar-right {
           background:#f8f0f8;
-          overflow:hidden;
           display:flex; align-items:center; justify-content:center;
         }
         .sidebar-left { grid-area:sidebar-left; }
         .sidebar-right{ grid-area:sidebar-right; }
 
-        /* PC/TABLETTE : images 80%×90% */
+        /* Images PC/Tablet : 80% × 90% */
         .sidebar-left img,
         .sidebar-right img {
           width: 80%;
-          height: 90%;
+          height: 100%;
           object-fit: cover;
           margin: auto;
           display: block;
         }
 
-        /* MOBILE : one-column layout, hide sidebars */
+        /* Sur mobile : une colonne, pas de sidebars */
         @media (max-width: 768px) {
           .app-layout {
             grid-template-areas:
@@ -205,38 +207,56 @@ export default function MapWithForm() {
           justify-content:center; font-size:0.9rem;
         }
 
+        /* Welcome overlay */
         .welcome-overlay {
-          position: fixed; top:0; left:0; right:0; bottom:0;
-          background: rgba(0,0,0,0.75);
-          display:flex; align-items:center; justify-content:center;
+          position:fixed;top:0;left:0;right:0;bottom:0;
+          background:rgba(0,0,0,0.75);
+          display:flex;align-items:center;justify-content:center;
           z-index:3000;
         }
         .welcome-box {
-          background:white; padding:32px;
-          max-width:400px; border-radius:8px;
-          text-align:center;
-          box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+          background:white;padding:32px;border-radius:8px;
+          text-align:center;box-shadow:0 4px 20px rgba(0,0,0,0.3);
         }
-        .welcome-box h2 { margin-bottom:0.5em; }
-        .welcome-box p  { margin-bottom:1.5em; }
+        .welcome-box h2 { margin-bottom:0.5em }
+        .welcome-box p  { margin-bottom:1.5em }
         .welcome-box button {
-          background:#FF69B4; color:white; border:none;
-          padding:10px 20px; border-radius:6px;
-          cursor:pointer; font-size:1rem;
+          background:#FF69B4;color:white;border:none;
+          padding:10px 20px;border-radius:6px;
+          cursor:pointer;font-size:1rem;
         }
+
+        /* Pop-up succès */
         @keyframes popIn {
           0%{transform:scale(0);opacity:0}
           80%{transform:scale(1.2);opacity:1}
           100%{transform:scale(1);opacity:1}
         }
         .popup-success {
-          position:absolute; top:50%; left:50%;
-          width:320px; padding:32px;
+          position:absolute;top:50%;left:50%;
+          width:320px;padding:32px;
           transform:translate(-50%,-50%) scale(0);
-          background:white; border-radius:12px;
+          background:white;border-radius:12px;
           box-shadow:0 6px 20px rgba(0,0,0,0.3);
-          text-align:center; z-index:2000;
+          text-align:center;z-index:2000;
           animation:popIn .25s ease-out forwards;
+        }
+
+        /* Sélecteur de rayon repositionné */
+        .radius-control {
+          position: absolute;
+          top: 80px;    /* sous les contrôles de zoom */
+          left: 50px;   /* décale vers la droite */
+          z-index: 1000;
+          background: white;
+          padding: 6px 10px;
+          border-radius: 6px;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+          font-size: 0.9rem;
+        }
+        .radius-control select {
+          margin-left: 6px;
+          font-size: 0.9rem;
         }
       `}</style>
 
@@ -263,13 +283,33 @@ export default function MapWithForm() {
         </aside>
 
         <main className="main">
+          {/* Contrôle de la taille du rayon */}
+          <div className="radius-control">
+            Rayon :
+            <select
+              value={anonRadius}
+              onChange={e => setAnonRadius(Number(e.target.value))}
+            >
+              <option value={500}>0.5 km</option>
+              <option value={1000}>1 km</option>
+              <option value={3000}>3 km</option>
+              <option value={5000}>5 km</option>
+              <option value={10000}>10 km</option>
+              <option value={15000}>15 km</option>
+              <option value={20000}>20 km</option>
+              <option value={25000}>25 km</option>
+              <option value={30000}>30 km</option>
+            </select>
+          </div>
+
           <MapContainer
             center={[46.5,2.5]}
             zoom={5}
-            style={{ height: '100%', width: '100%', cursor: 'crosshair' }}
+            style={{ height:'100%', width:'100%', cursor:'crosshair' }}
             attributionControl={false}
           >
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+
             <MarkerClusterGroup
               showCoverageOnHover={false}
               iconCreateFunction={clusterIconCreate}
@@ -277,7 +317,7 @@ export default function MapWithForm() {
               {profiles.map(p => (
                 <Marker
                   key={p.id}
-                  position={[p.lat, p.lng]}
+                  position={[p.lat,p.lng]}
                   icon={createAvatarIcon(p.avatar_url)}
                   eventHandlers={{ click: () => handleProfileClick(p) }}
                 />
@@ -288,33 +328,32 @@ export default function MapWithForm() {
               <Circle
                 center={clickCircle.center}
                 radius={clickCircle.radius}
-                pathOptions={{ color: 'blue', fillOpacity: 0.1 }}
+                pathOptions={{ color:'blue', fillOpacity:0.1 }}
               />
             )}
             {profileCircle && (
               <Circle
                 center={profileCircle.center}
                 radius={profileCircle.radius}
-                pathOptions={{ color: 'purple', fillOpacity: 0.05 }}
+                pathOptions={{ color:'purple', fillOpacity:0.05 }}
               />
             )}
 
-            <ClickControl onClick={handleMapClick} />
+            <ClickControl onClick={handleMapClick}/>
 
             {selectedProfile && (
               <Popup
-                position={[selectedProfile.lat, selectedProfile.lng]}
-                onClose={() => setSelectedProfile(null)}
+                position={[selectedProfile.lat,selectedProfile.lng]}
+                onClose={()=>setSelectedProfile(null)}
               >
-                <div style={{ textAlign: 'center' }}>
+                <div style={{ textAlign:'center' }}>
                   <img
                     src={selectedProfile.avatar_url}
-                    width={60}
-                    height={60}
-                    style={{ borderRadius: '50%', marginBottom: 8 }}
+                    width={60} height={60}
+                    style={{ borderRadius:'50%', marginBottom:8 }}
                   />
                   <strong>{selectedProfile.pseudo}</strong>
-                  <p style={{ margin: '4px 0 0' }}>
+                  <p style={{ margin:'4px 0 0' }}>
                     {selectedProfile.description}
                   </p>
                 </div>
@@ -324,71 +363,47 @@ export default function MapWithForm() {
 
           {showForm && (
             <div style={{
-              position: 'absolute',
-              top: 20,
-              right: 20,
-              width: 340,
-              background: 'white',
-              padding: 20,
-              boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
-              zIndex: 1000
+              position:'absolute', top:20, right:20, width:340,
+              background:'white', padding:20,
+              boxShadow:'0 2px 10px rgba(0,0,0,0.3)', zIndex:1000
             }}>
               <button
-                onClick={() => setShowForm(false)}
+                onClick={()=>setShowForm(false)}
                 style={{
-                  float: 'right',
-                  background: 'transparent',
-                  border: 'none',
-                  fontSize: '1.4rem',
-                  cursor: 'pointer'
+                  float:'right', background:'transparent',
+                  border:'none', fontSize:'1.4rem', cursor:'pointer'
                 }}
               >×</button>
               <h2 style={{
-                color: 'var(--pink)',
-                margin: '0 0 1rem',
-                fontSize: '1.4rem'
+                color:'var(--pink)', margin:'0 0 1rem', fontSize:'1.4rem'
               }}>Ajouter ton profil</h2>
               <form onSubmit={handleSubmit}>
                 <input
-                  required
-                  placeholder="Pseudo"
+                  required placeholder="Pseudo"
                   value={formData.pseudo}
-                  onChange={e => setFormData(f => ({ ...f, pseudo: e.target.value }))}
-                  style={{ width: '100%', marginBottom: 12, padding: 8, fontSize: '1rem' }}
+                  onChange={e=>setFormData(f=>({...f,pseudo:e.target.value}))}
+                  style={{width:'100%',marginBottom:12,padding:8,fontSize:'1rem'}}
                 />
                 <textarea
-                  required
-                  maxLength={100}
+                  required maxLength={100}
                   placeholder="Description (100 car.)"
                   value={formData.description}
-                  onChange={e => setFormData(f => ({ ...f, description: e.target.value }))}
+                  onChange={e=>setFormData(f=>({...f,description:e.target.value}))}
                   style={{
-                    width:'100%',
-                    height:80,
-                    marginBottom:12,
-                    padding:8,
-                    fontSize:'1rem',
-                    borderRadius:4,
-                    border:'1px solid #ccc'
+                    width:'100%',height:80,marginBottom:12,padding:8,fontSize:'1rem',
+                    borderRadius:4,border:'1px solid #ccc'
                   }}
                 />
                 <input
-                  type="file"
-                  accept="image/*"
-                  required
-                  onChange={e => setFormData(f => ({ ...f, avatar: e.target.files[0] }))}
-                  style={{ width:'100%', marginBottom:16 }}
+                  type="file" accept="image/*" required
+                  onChange={e=>setFormData(f=>({...f,avatar:e.target.files[0]}))}
+                  style={{width:'100%',marginBottom:16}}
                 />
                 <button
                   type="submit"
                   style={{
-                    width:'100%',
-                    padding:12,
-                    background:'var(--pink)',
-                    border:'none',
-                    borderRadius:8,
-                    cursor:'pointer',
-                    fontSize:'1rem'
+                    width:'100%',padding:12,background:'var(--pink)',
+                    border:'none',borderRadius:8,cursor:'pointer',fontSize:'1rem'
                   }}
                 >Envoyer</button>
               </form>
@@ -397,7 +412,7 @@ export default function MapWithForm() {
 
           {showSuccess && (
             <div className="popup-success">
-              <div style={{ fontSize: '2.5rem' }}>🎉</div>
+              <div style={{fontSize:'2.5rem'}}>🎉</div>
               <h2>Félicitations !</h2>
               <p>Ta demande a été envoyée !</p>
             </div>
@@ -405,7 +420,7 @@ export default function MapWithForm() {
         </main>
 
         <footer className="footer">
-          Contact : Discord <strong> Firock_</strong> | Insta <strong> stupid_femboy_</strong>
+          Contact : Discord <strong>Firock_</strong> | Insta <strong>stupid_femboy_</strong>
         </footer>
       </div>
     </>
