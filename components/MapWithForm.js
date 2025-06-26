@@ -37,7 +37,6 @@ const createAvatarIcon = url =>
     popupAnchor: [0, -40],
   })
 
-// Génère un point aléatoire dans un cercle (mètres)
 function getRandomPointInCircle(center, radiusMeters) {
   const rd = radiusMeters / 111320
   const u = Math.random(), v = Math.random()
@@ -47,7 +46,6 @@ function getRandomPointInCircle(center, radiusMeters) {
   return { lat: center.lat + dy, lng: center.lng + dx }
 }
 
-// Composant pour gérer les clics sur la carte
 function ClickControl({ onClick }) {
   useMapEvents({ click: onClick })
   return null
@@ -64,7 +62,6 @@ export default function MapWithForm() {
   const [showForm, setShowForm]               = useState(false)
   const [formData, setFormData]               = useState({ pseudo:'', description:'', avatar:null })
   const [showSuccess, setShowSuccess]         = useState(false)
-  const [showContact, setShowContact]         = useState(false)
   const [showWelcome, setShowWelcome]         = useState(true)
 
   useEffect(() => {
@@ -165,22 +162,41 @@ export default function MapWithForm() {
           align-items:center; justify-content:center;
           font-size:1.4rem; font-weight:bold;
         }
-        .sidebar-left, .sidebar-right {
+        .sidebar-left,
+        .sidebar-right {
           background:#f8f0f8;
           overflow:hidden;
           display:flex; align-items:center; justify-content:center;
         }
         .sidebar-left { grid-area:sidebar-left; }
-        .sidebar-right { grid-area:sidebar-right; }
-        /* images réduites à 80%, centrées */
+        .sidebar-right{ grid-area:sidebar-right; }
+
+        /* PC/TABLETTE : images 80%×90% */
         .sidebar-left img,
         .sidebar-right img {
-          width: 90%;
-          height: 100%;
+          width: 80%;
+          height: 90%;
           object-fit: cover;
           margin: auto;
           display: block;
         }
+
+        /* MOBILE : one-column layout, hide sidebars */
+        @media (max-width: 768px) {
+          .app-layout {
+            grid-template-areas:
+              "header"
+              "main"
+              "footer";
+            grid-template-columns: 1fr;
+            grid-template-rows: 60px 1fr 60px;
+          }
+          .sidebar-left,
+          .sidebar-right {
+            display: none;
+          }
+        }
+
         .main { grid-area: main; position:relative; }
         .footer {
           grid-area: footer;
@@ -188,6 +204,7 @@ export default function MapWithForm() {
           display:flex; align-items:center;
           justify-content:center; font-size:0.9rem;
         }
+
         .welcome-overlay {
           position: fixed; top:0; left:0; right:0; bottom:0;
           background: rgba(0,0,0,0.75);
@@ -249,7 +266,7 @@ export default function MapWithForm() {
           <MapContainer
             center={[46.5,2.5]}
             zoom={5}
-            style={{height:'100%',width:'100%',cursor:'crosshair'}}
+            style={{ height: '100%', width: '100%', cursor: 'crosshair' }}
             attributionControl={false}
           >
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -257,43 +274,47 @@ export default function MapWithForm() {
               showCoverageOnHover={false}
               iconCreateFunction={clusterIconCreate}
             >
-              {profiles.map(p=>(
+              {profiles.map(p => (
                 <Marker
                   key={p.id}
-                  position={[p.lat,p.lng]}
+                  position={[p.lat, p.lng]}
                   icon={createAvatarIcon(p.avatar_url)}
-                  eventHandlers={{ click:()=>handleProfileClick(p) }}
+                  eventHandlers={{ click: () => handleProfileClick(p) }}
                 />
               ))}
             </MarkerClusterGroup>
+
             {clickCircle && (
               <Circle
                 center={clickCircle.center}
                 radius={clickCircle.radius}
-                pathOptions={{ color:'blue', fillOpacity:0.1 }}
+                pathOptions={{ color: 'blue', fillOpacity: 0.1 }}
               />
             )}
             {profileCircle && (
               <Circle
                 center={profileCircle.center}
                 radius={profileCircle.radius}
-                pathOptions={{ color:'purple', fillOpacity:0.05 }}
+                pathOptions={{ color: 'purple', fillOpacity: 0.05 }}
               />
             )}
-            <ClickControl onClick={handleMapClick}/>
+
+            <ClickControl onClick={handleMapClick} />
+
             {selectedProfile && (
               <Popup
-                position={[selectedProfile.lat,selectedProfile.lng]}
-                onClose={()=>setSelectedProfile(null)}
+                position={[selectedProfile.lat, selectedProfile.lng]}
+                onClose={() => setSelectedProfile(null)}
               >
-                <div style={{textAlign:'center'}}>
+                <div style={{ textAlign: 'center' }}>
                   <img
                     src={selectedProfile.avatar_url}
-                    width={60} height={60}
-                    style={{borderRadius:'50%',marginBottom:8}}
+                    width={60}
+                    height={60}
+                    style={{ borderRadius: '50%', marginBottom: 8 }}
                   />
                   <strong>{selectedProfile.pseudo}</strong>
-                  <p style={{margin:'4px 0 0'}}>
+                  <p style={{ margin: '4px 0 0' }}>
                     {selectedProfile.description}
                   </p>
                 </div>
@@ -303,47 +324,71 @@ export default function MapWithForm() {
 
           {showForm && (
             <div style={{
-              position:'absolute', top:20, right:20, width:340,
-              background:'white', padding:20,
-              boxShadow:'0 2px 10px rgba(0,0,0,0.3)', zIndex:1000
+              position: 'absolute',
+              top: 20,
+              right: 20,
+              width: 340,
+              background: 'white',
+              padding: 20,
+              boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+              zIndex: 1000
             }}>
               <button
-                onClick={()=>setShowForm(false)}
+                onClick={() => setShowForm(false)}
                 style={{
-                  float:'right', background:'transparent',
-                  border:'none', fontSize:'1.4rem', cursor:'pointer'
+                  float: 'right',
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '1.4rem',
+                  cursor: 'pointer'
                 }}
               >×</button>
-              <h2 style={{ color:'var(--pink)', margin:'0 0 1rem', fontSize:'1.4rem' }}>
-                Ajouter ton profil
-              </h2>
+              <h2 style={{
+                color: 'var(--pink)',
+                margin: '0 0 1rem',
+                fontSize: '1.4rem'
+              }}>Ajouter ton profil</h2>
               <form onSubmit={handleSubmit}>
                 <input
-                  required placeholder="Pseudo"
+                  required
+                  placeholder="Pseudo"
                   value={formData.pseudo}
-                  onChange={e=>setFormData(f=>({...f,pseudo:e.target.value}))}
-                  style={{width:'100%',marginBottom:12,padding:8,fontSize:'1rem'}}
+                  onChange={e => setFormData(f => ({ ...f, pseudo: e.target.value }))}
+                  style={{ width: '100%', marginBottom: 12, padding: 8, fontSize: '1rem' }}
                 />
                 <textarea
-                  required maxLength={100} placeholder="Description (100 car.)"
+                  required
+                  maxLength={100}
+                  placeholder="Description (100 car.)"
                   value={formData.description}
-                  onChange={e=>setFormData(f=>({...f,description:e.target.value}))}
+                  onChange={e => setFormData(f => ({ ...f, description: e.target.value }))}
                   style={{
-                    width:'100%',height:80,marginBottom:12,padding:8,fontSize:'1rem',
-                    borderRadius:4,border:'1px solid #ccc'
+                    width:'100%',
+                    height:80,
+                    marginBottom:12,
+                    padding:8,
+                    fontSize:'1rem',
+                    borderRadius:4,
+                    border:'1px solid #ccc'
                   }}
                 />
                 <input
-                  type="file" accept="image/*" required
-                  onChange={e=>setFormData(f=>({...f,avatar:e.target.files[0]}))}
-                  style={{width:'100%',marginBottom:16}}
+                  type="file"
+                  accept="image/*"
+                  required
+                  onChange={e => setFormData(f => ({ ...f, avatar: e.target.files[0] }))}
+                  style={{ width:'100%', marginBottom:16 }}
                 />
                 <button
                   type="submit"
                   style={{
-                    width:'100%',padding:12,
-                    background:'var(--pink)',border:'none',
-                    borderRadius:8,cursor:'pointer',fontSize:'1rem'
+                    width:'100%',
+                    padding:12,
+                    background:'var(--pink)',
+                    border:'none',
+                    borderRadius:8,
+                    cursor:'pointer',
+                    fontSize:'1rem'
                   }}
                 >Envoyer</button>
               </form>
@@ -352,7 +397,7 @@ export default function MapWithForm() {
 
           {showSuccess && (
             <div className="popup-success">
-              <div style={{fontSize:'2.5rem'}}>🎉</div>
+              <div style={{ fontSize: '2.5rem' }}>🎉</div>
               <h2>Félicitations !</h2>
               <p>Ta demande a été envoyée !</p>
             </div>
@@ -360,7 +405,7 @@ export default function MapWithForm() {
         </main>
 
         <footer className="footer">
-          Contact : Discord <strong>Firock_</strong> | Insta <strong>stupid_femboy_</strong>
+          Contact : Discord <strong> Firock_</strong> | Insta <strong> stupid_femboy_</strong>
         </footer>
       </div>
     </>
