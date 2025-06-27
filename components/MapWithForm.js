@@ -420,7 +420,7 @@ export default function MapWithForm() {
         </main>
 
         <footer className="footer">
-          Contact : Discord <strong>Firock_</strong> | Insta <strong>stupid_femboy_</strong>
+          Contact : Discord <strong> : Firock_</strong> | Insta <strong> : stupid_femboy_</strong>
         </footer>
       </div>
     </>
